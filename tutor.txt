@@ -1,0 +1,5 @@
+// sendMessage
+await kyy.replyWithPhoto({ url: 'Link' }, { caption: 'caption' }) // Image
+await kyy.replyWithAudio({ url: 'Link', filename: 'Nama' }) // Audio
+await kyy.replyWithVideo({ url: 'Link' }, { caption: 'caption' }) // Video
+

@@ -1,0 +1,36 @@
+{
+	"name": "takamiya-botz",
+	"version": "1.0.0",
+	"description": "A simple telegram bot build with node js",
+	"main": "takamiya.js",
+	"directories": {
+		"lib": "lib"
+	},
+	"dependencies": {
+         "axios": "latest",
+	 "chalk": "^4.1.0",
+	 "node-fetch": "^2.6.1",
+	 "path": "latest",
+	 "telegraf": "^4.3.0",
+	 "yt-search": "^2.10.4"
+	},
+	"devDependencies": {},
+	"scripts": {
+		"start": "node takamiya.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ShiinjiZX/Takamiya-TeleBotz.git"
+	},
+	"keywords": [
+		"telegram",
+		"bot",
+		"telegram-bot"
+	],
+	"author": "KyyZX",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/ShiinjiZX/Takamiya-TeleBotz/issues"
+	},
+	"homepage": "https://github.com/ShiinjiZX/Takamiya-TeleBotz#readme"
+}
