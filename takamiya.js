@@ -24,6 +24,7 @@ const chalk = require('chalk')
 const os = require('os')
 const fs = require('fs')
 const yts = require("yt-search")
+const https = require('https')
 
 const { botname, bot_token, owner, ownerLink, version, prefix } = JSON.parse(fs.readFileSync(`./config.json`))
 
@@ -46,18 +47,55 @@ bot.command('menu', async (kyy) => {
 })
 
 bot.on('callback_query', async (kyy) => {
-	cb_data = kyy.callbackQuery.data.split('-')
-	user_id = Number(cb_data[1])
-	if (kyy.callbackQuery.from.id != user_id) return kyy.answerCbQuery('Sorry, You do not have the right to access this button.', { show_alert: true })
-	callback_data = cb_data[0]
-	user = tele.getUser(kyy.callbackQuery.from)
-	const isGroup = kyy.chat.type.includes('group')
-	const groupName = isGroup ? kyy.chat.title : ''
-	if (!isGroup) console.log(chalk.whiteBright('├'), chalk.cyanBright('[ ACTIONS ]'), chalk.whiteBright(callback_data), chalk.greenBright('from'), chalk.whiteBright(user.full_name))
-	if (isGroup) console.log(chalk.whiteBright('├'), chalk.cyanBright('[ ACTIONS ]'), chalk.whiteBright(callback_data), chalk.greenBright('from'), chalk.whiteBright(user.full_name), chalk.greenBright('in'), chalk.whiteBright(groupName))
-	if (callback_data == 'help') return await help[callback_data](kyy, user.full_name, user_id)
-	await help[callback_data](kyy, user_id.toString())
-})
+    try {
+        const [callback_data, payload] = kyy.callbackQuery.data.split('|')
+        const from_id = kyy.callbackQuery.from.id
+
+        if (callback_data === 'audio' || callback_data === 'video') {
+            await kyy.answerCbQuery(`Mengunduh ${callback_data.toUpperCase()}...`, { show_alert: false });
+
+            const url = payload;
+
+            if (callback_data === 'audio') {
+                const { data: result } = await axios.get(`https://api.siputzx.my.id/api/d/ytmp3?url=${url}`);
+                if (result.status && result.data.dl) {
+                    // Hapus tombol AUDIO, sisakan VIDEO
+                    await kyy.editMessageReplyMarkup({
+                        inline_keyboard: [[
+                            { text: 'VIDEO', callback_data: `video|${url}` }
+                        ]]
+                    });
+                    await kyy.replyWithAudio({ url: result.data.dl, filename: result.data.title });
+                }
+            } else if (callback_data === 'video') {
+                const { data: result } = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${url}`);
+                if (result.status && result.data.dl) {
+                    // Hapus semua tombol
+                    await kyy.editMessageReplyMarkup({ inline_keyboard: [] });
+                    await kyy.replyWithVideo({ url: result.data.dl });
+                }
+            }
+
+            return;
+        }
+
+        // Handler lainnya tetap
+        const [command_name, user_id_str] = kyy.callbackQuery.data.split('-')
+        const user_id = Number(user_id_str)
+        if (from_id !== user_id) {
+            return kyy.answerCbQuery('❌ You are not allowed to use this button.', { show_alert: true })
+        }
+
+        const user = tele.getUser(kyy.callbackQuery.from)
+        if (command_name === 'help') {
+            return await help[command_name](kyy, user.full_name, user_id)
+        }
+        await help[command_name](kyy, user_id)
+    } catch (err) {
+        console.error('Callback error:', err)
+        await kyy.answerCbQuery('An error occurred.', { show_alert: true })
+    }
+});
 
 bot.on('message', async (kyy, m, chatUpdate, store) => {
 	try {
@@ -158,30 +196,46 @@ kyy.ev.emit('messages.upsert', msg)}
 		}
 		var mediaLink = file_id != '' ? await tele.getLink(file_id) : ''
 
+
+//BATAS AKHIR
+
+//ini fitur case
 switch (command) {
 case 'menu':
 await help.help(kyy, user.full_name, kyy.message.from.id.toString())
 break
 
-case  'yts': case 'ytsearch': {
-if (!text) return reply(`Example : ${prefix + command} Drunk Text`)
-let convert = await yts({ search: text, hl: "id", gl: "ID" });
-if (convert === 0) {
-return reply("Lagu Kamu Cari Tidak Di Temukan Sayang, Coba Cari Judul Lain...");
-}
-let result = convert.all[0];
-	let lily = `*YOUTUBE PLAY*\n`;
-        lily += `*Judul*: ${result.title}\n`;
-        lily += `*Id*: ${result.videoId}\n`;
-        lily += `*Durasi*: ${result.timestamp}\n`;
-        lily += `*Upload*: ${result.ago}\n`;
-        lily += `*Deskripsi*: ${result.description}\n\n`;
-        lily += `*URL*: ${result.url}\n\n`;
-        lily += `**Masukan Command .audio/video linknya\n`;
+case 'song':
+case 'play': {
+    if (!text) return reply(`Example : ${prefix + command} Drunk Text`);
+    
+    let convert = await yts({ search: text, hl: "id", gl: "ID" });
+    if (convert.all.length === 0) {
+        return reply("Lagu Kamu Cari Tidak Di Temukan Sayang, Coba Cari Judul Lain...");
+    }
 
-await kyy.replyWithPhoto({ url: result.image }, { caption: lily })
+    let result = convert.all[0];
+    let lily = `*YOUTUBE PLAY*\n`;
+    lily += `*Judul*: ${result.title}\n`;
+    lily += `*Id*: ${result.videoId}\n`;
+    lily += `*Durasi*: ${result.timestamp}\n`;
+    lily += `*Upload*: ${result.ago}\n`;
+    lily += `*Deskripsi*: ${result.description}\n\n`;
+    lily += `*URL*: ${result.url}\n\n`;
+    lily += `Klik Button Dibawah Untuk Mendownload\n`;
+
+    await kyy.replyWithPhoto({ url: result.image }, {
+    caption: lily,
+    parse_mode: "Markdown",
+    reply_markup: {
+        inline_keyboard: [[
+            { text: 'AUDIO', callback_data: `audio|${result.url}` },
+            { text: 'VIDEO', callback_data: `video|${result.url}` }
+        ]]
+    }
+});
+    break;
 }
-break
 
 case 'tiktok':
 case 'tt': {
@@ -404,6 +458,218 @@ reply('tunggu bentar gan')
 await downloadMp3(text);
 }
 break;
+
+case 'pin' :
+case 'pinterest': {
+const agent = new https.Agent({
+ rejectUnauthorized: true,
+ maxVersion: 'TLSv1.3',
+ minVersion: 'TLSv1.2'
+});
+
+async function getCookies() {
+ try {
+ const response = await axios.get('https://www.pinterest.com/csrf_error/', { httpsAgent: agent });
+ const setCookieHeaders = response.headers['set-cookie'];
+ if (setCookieHeaders) {
+ const cookies = setCookieHeaders.map(cookieString => {
+ const cookieParts = cookieString.split(';');
+ return cookieParts[0].trim();
+ });
+ return cookies.join('; ');
+ }
+ return null;
+ } catch {
+ return null;
+ }
+}
+
+async function pinterest(query) {
+ try {
+ const cookies = await getCookies();
+ if (!cookies) return [];
+
+ const url = 'https://www.pinterest.com/resource/BaseSearchResource/get/';
+ const params = {
+ source_url: `/search/pins/?q=${query}`,
+ data: JSON.stringify({
+ options: {
+ isPrefetch: false,
+ query: query,
+ scope: "pins",
+ no_fetch_context_on_resource: false
+ },
+ context: {}
+ }),
+ _: Date.now()
+ };
+
+ const headers = {
+ 'accept': 'application/json, text/javascript, */*, q=0.01',
+ 'accept-encoding': 'gzip, deflate',
+ 'accept-language': 'en-US,en;q=0.9',
+ 'cookie': cookies,
+ 'dnt': '1',
+ 'referer': 'https://www.pinterest.com/',
+ 'sec-ch-ua': '"Not(A:Brand";v="99", "Microsoft Edge";v="133", "Chromium";v="133"',
+ 'sec-ch-ua-full-version-list': '"Not(A:Brand";v="99.0.0.0", "Microsoft Edge";v="133.0.3065.92", "Chromium";v="133.0.6943.142"',
+ 'sec-ch-ua-mobile': '?0',
+ 'sec-ch-ua-model': '""',
+ 'sec-ch-ua-platform': '"Windows"',
+ 'sec-ch-ua-platform-version': '"10.0.0"',
+ 'sec-fetch-dest': 'empty',
+ 'sec-fetch-mode': 'cors',
+ 'sec-fetch-site': 'same-origin',
+ 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0',
+ 'x-app-version': 'c056fb7',
+ 'x-pinterest-appstate': 'active',
+ 'x-pinterest-pws-handler': 'www/[username]/[slug].js',
+ 'x-pinterest-source-url': '/hargr003/cat-pictures/',
+ 'x-requested-with': 'XMLHttpRequest'
+ };
+
+ const { data } = await axios.get(url, { httpsAgent: agent, headers, params });
+ return data.resource_response.data.results
+ .filter(v => v.images?.orig)
+ .map(result => ({
+ upload_by: result.pinner.username,
+ fullname: result.pinner.full_name,
+ followers: result.pinner.follower_count,
+ caption: result.grid_title,
+ image: result.images.orig.url,
+ source: "https://id.pinterest.com/pin/" + result.id,
+ }));
+ } catch {
+ return [];
+ }
+}
+
+ if (!text) return reply(`*Penggunaan:* ${prefix + command} <query> <jumlah>\n\n*Contoh:* ${prefix + command} anime 3`);
+ 
+ let [query, count] = text.split(' ');
+ let imgCount = 5;
+
+ if (text.indexOf(' ') !== -1) {
+ const lastWord = text.split(' ').pop();
+ if (!isNaN(lastWord) && lastWord.trim() !== '') {
+ imgCount = parseInt(lastWord);
+ query = text.substring(0, text.lastIndexOf(' '));
+ } else {
+ query = text;
+ }
+ } else {
+ query = text;
+ }
+ 
+ reply('Searching Pinterest images...');
+ 
+ try {
+ const results = await pinterest(query);
+ if (results.length === 0) return reply(`No results found for "${query}". Try another search term.`);
+ 
+ const imagesToSend = Math.min(results.length, imgCount);
+ reply(`Sending ${imagesToSend} Pinterest images for "${query}"...`);
+ 
+ for (let i = 0; i < imagesToSend; i++) {
+ await kyy.replyWithPhoto({ url: `${results[i].image}` }, { caption: `Result From: ${text}` })
+ }
+ } catch {
+ reply('Error occurred while fetching Pinterest images. Please try again later.');
+ }
+}
+break
+
+case 'mediafire':
+case 'mf': {
+    if (!text) return reply(`Masukkan link Mediafire-nya!\nContoh: ${prefix + command} https://www.mediafire.com/file/xxxx`);
+    reply('Tunggu sebentar, sedang diproses...');
+
+    try {
+        const res = await axios.get(`https://api.siputzx.my.id/api/d/mediafire?url=${encodeURIComponent(text)}`);
+        const json = res.data;
+
+        if (!json.status || !json.data) return reply('Gagal mengambil data dari Mediafire.');
+
+        const {
+            fileName,
+            fileSize,
+            fileType,
+            mimeType,
+            fileExtension,
+            uploadDate,
+            compatibility,
+            description,
+            downloadLink
+        } = json.data;
+
+        const caption = `*「 MEDIAFIRE DOWNLOADER 」*\n\n` +
+        `*Nama File:* ${fileName}\n` +
+        `*Ukuran:* ${fileSize}\n` +
+        `*Tipe:* ${fileType} (${fileExtension})\n` +
+        `*Mime:* ${mimeType}\n` +
+        `*Kompatibilitas:* ${compatibility}\n` +
+        `*Upload Date:* ${uploadDate}\n` +
+        `*Deskripsi:* ${description}`;
+
+        await kyy.replyWithDocument(
+            { url: downloadLink, filename: fileName, contentType: mimeType },
+            { caption, parse_mode: "Markdown" }
+        );
+    } catch (err) {
+        console.error(err);
+        reply('Terjadi kesalahan saat memproses link.');
+    }
+    break;
+}
+
+case 'gitclone': {
+    if (!text) return reply(`⚠️ Gunakan dengan cara:\n${prefix}gitclone <url>\n\nContoh:\n${prefix}gitclone https://github.com/user/repo`);
+
+    const regx = /(?:https|git)(?::\/\/|@)github\.com[\/:]([^\/:]+)\/(.+)/i;
+
+    if (!regx.test(text)) return reply("❌ Link GitHub tidak valid.");
+
+    await kyy.reply("⏱️ Sedang memproses...");
+
+    try {
+        let [, usr, repo] = text.match(regx) || [];
+        let repos = repo.replace(/.git$/, '');
+        let downloadUrl = `https://api.github.com/repos/${usr}/${repos}/zipball`;
+
+        // Ambil nama file dari header Content-Disposition
+        const response = await fetch(downloadUrl, { method: 'HEAD' });
+        const disposition = response.headers.get('content-disposition');
+        const match = disposition && disposition.match(/attachment; filename="?(.+?)"?$/);
+        const filename = match ? match[1] : `${repos}.zip`;
+
+        await kyy.replyWithDocument({ url: downloadUrl, filename }, {
+            caption: `✅ Repository berhasil di-clone:\n*${usr}/${repos}*`,
+            parse_mode: "Markdown"
+        });
+    } catch (err) {
+        console.error('GitClone error:', err.message);
+        return reply("❌ Gagal mengunduh repository.");
+    }
+
+    break;
+}
+
+case 'carbon': {
+    if (!text) return reply(`❌ Masukkan teks yang ingin diubah menjadi gambar kode.\n\nContoh: ${prefix + command} console.log("hello world")`);
+    try {
+        const encodedText = encodeURIComponent(text);
+        const imageUrl = `https://api.siputzx.my.id/api/m/carbonify?input=${encodedText}`;
+
+        await kyy.replyWithPhoto({ url: imageUrl }, {
+            caption: `✅ Selesai, berikut hasil carbon-nya.`,
+            parse_mode: "Markdown"
+        });
+    } catch (err) {
+        console.error('Carbon error:', err);
+        return reply('❌ Terjadi kesalahan saat memproses permintaan. Coba lagi nanti.');
+    }
+    break;
+}
 
 // DISINI BATAS AKHIR CASE
 		}

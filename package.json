@@ -7,11 +7,12 @@
 		"lib": "lib"
 	},
 	"dependencies": {
-         "axios": "latest",
+      "axios": "latest",
 	 "chalk": "^4.1.0",
 	 "node-fetch": "^2.6.1",
 	 "path": "latest",
 	 "telegraf": "^4.3.0",
+	 "https": "*", 
 	 "yt-search": "^2.10.4"
 	},
 	"devDependencies": {},
